@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { verifyToken, getAuthTokenFromRequest } from '@/lib/auth';
+import { verifyToken, getAuthTokenFromRequest, hashPassword } from '@/lib/auth';
 import { prisma } from '@/lib/database';
 
 // PUT - Update a room
@@ -19,7 +19,7 @@ export async function PUT(
     }
 
     const { roomId } = await params;
-    const { name, description, hostApproval, maxParticipants, isActive, canRecord } = await request.json();
+    const { name, description, hostApproval, maxParticipants, isActive, canRecord, hostPassword } = await request.json();
 
     if (!name) {
       return NextResponse.json(
@@ -40,6 +40,17 @@ export async function PUT(
       );
     }
 
+    // Hash host password if provided (only update if new password is provided)
+    let passwordUpdate: { hostPassword?: string | null } = {};
+    if (hostPassword !== undefined) {
+      if (hostPassword && hostPassword.trim()) {
+        passwordUpdate.hostPassword = await hashPassword(hostPassword);
+      } else {
+        // Empty string means remove password
+        passwordUpdate.hostPassword = null;
+      }
+    }
+
     // Update the room
     const updatedRoom = await prisma.room.update({
       where: { id: roomId },
@@ -49,7 +60,8 @@ export async function PUT(
         hostApproval: hostApproval !== undefined ? hostApproval : existingRoom.hostApproval,
         maxParticipants: maxParticipants || existingRoom.maxParticipants,
         isActive: isActive !== undefined ? isActive : existingRoom.isActive,
-        canRecord: canRecord !== undefined ? canRecord : existingRoom.canRecord
+        canRecord: canRecord !== undefined ? canRecord : existingRoom.canRecord,
+        ...passwordUpdate
       },
       include: {
         participants: true

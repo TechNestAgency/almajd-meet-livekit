@@ -25,7 +25,9 @@ export default function HostRoomAccess() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [userName, setUserName] = useState<string | null>(null);
+  const [hostPassword, setHostPassword] = useState<string | null>(null);
   const [showNameInput, setShowNameInput] = useState(false);
+  const [requiresPassword, setRequiresPassword] = useState(false);
 
   // Debug logging
   console.log('🔍 Host Room Access Debug:', {
@@ -49,6 +51,7 @@ export default function HostRoomAccess() {
         if (response.ok) {
           const data = await response.json();
           setRoomValidation(data);
+          setRequiresPassword(data.requiresPassword || false);
           setShowNameInput(true); // Show name input after successful validation
         } else {
           const errorData = await response.json();
@@ -96,8 +99,12 @@ export default function HostRoomAccess() {
         roomLink={roomLink}
         accessType={accessType as 'host' | 'guest'}
         roomName={roomValidation?.room?.name}
-        onNameSubmit={(name) => {
+        requiresPassword={requiresPassword}
+        onNameSubmit={(name, password) => {
           setUserName(name);
+          if (password) {
+            setHostPassword(password);
+          }
           setShowNameInput(false);
         }}
       />
@@ -202,6 +209,9 @@ export default function HostRoomAccess() {
       userName={participantName}
       participantType={accessType as 'host' | 'guest'}
       canRecord={roomValidation.room?.canRecord || false}
+      roomLink={roomLink}
+      hostPassword={hostPassword || undefined}
+      hostApproval={roomValidation.room?.hostApproval || false}
     />
   );
 }

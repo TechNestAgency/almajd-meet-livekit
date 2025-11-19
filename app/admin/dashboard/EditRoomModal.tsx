@@ -32,7 +32,8 @@ export default function EditRoomModal({ room, onClose, onRoomUpdated }: EditRoom
   const [formData, setFormData] = useState({
     name: '',
     isActive: true,
-    canRecord: false
+    canRecord: false,
+    hostPassword: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -40,7 +41,8 @@ export default function EditRoomModal({ room, onClose, onRoomUpdated }: EditRoom
     setFormData({
       name: room.name,
       isActive: room.isActive,
-      canRecord: room.canRecord
+      canRecord: room.canRecord,
+      hostPassword: '' // Don't show existing password for security
     });
   }, [room]);
 
@@ -61,7 +63,8 @@ export default function EditRoomModal({ room, onClose, onRoomUpdated }: EditRoom
           description: room.description || '',
           hostApproval: room.hostApproval,
           maxParticipants: room.maxParticipants,
-          canRecord: formData.canRecord
+          canRecord: formData.canRecord,
+          hostPassword: formData.hostPassword || undefined
         }),
       });
 
@@ -175,6 +178,24 @@ export default function EditRoomModal({ room, onClose, onRoomUpdated }: EditRoom
                 )}
               />
             </button>
+          </div>
+
+          {/* Host Password */}
+          <div>
+            <label htmlFor="hostPassword" className="block text-sm font-medium text-gray-700 mb-2 text-right">
+              كلمة مرور المضيف (اختياري)
+            </label>
+            <input
+              id="hostPassword"
+              type="password"
+              value={formData.hostPassword}
+              onChange={(e) => handleInputChange('hostPassword', e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-right"
+              placeholder="اتركه فارغاً للاحتفاظ بالكلمة الحالية أو أدخل كلمة جديدة"
+            />
+            <p className="text-xs text-gray-500 mt-1 text-right">
+              اتركه فارغاً للاحتفاظ بالكلمة الحالية، أو أدخل كلمة جديدة لتغييرها
+            </p>
           </div>
 
           {/* Room Info - Simplified */}

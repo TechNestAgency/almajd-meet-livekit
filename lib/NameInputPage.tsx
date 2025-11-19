@@ -7,23 +7,56 @@ interface NameInputPageProps {
   roomLink: string;
   accessType: 'host' | 'guest';
   roomName?: string;
-  onNameSubmit: (name: string) => void;
+  requiresPassword?: boolean;
+  onNameSubmit: (name: string, password?: string) => void;
 }
 
-export function NameInputPage({ roomLink, accessType, roomName, onNameSubmit }: NameInputPageProps) {
+export function NameInputPage({ roomLink, accessType, roomName, requiresPassword, onNameSubmit }: NameInputPageProps) {
   const [name, setName] = useState('');
+  const [password, setPassword] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const router = useRouter();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!name.trim()) return;
-
-    setIsSubmitting(true);
-    // Small delay to show loading state
-    await new Promise(resolve => setTimeout(resolve, 500));
     
-    onNameSubmit(name.trim());
+    // For host access, validate password if required
+    if (accessType === 'host' && requiresPassword) {
+      if (!password.trim()) {
+        setError('Password is required');
+        return;
+      }
+
+      setIsSubmitting(true);
+      setError(null);
+
+      try {
+        // Validate password with room
+        const response = await fetch(`/api/room/validate/${roomLink}?type=host&password=${encodeURIComponent(password)}`);
+        const data = await response.json();
+
+        if (!response.ok || !data.passwordValid) {
+          setError('Invalid password. Please try again.');
+          setIsSubmitting(false);
+          return;
+        }
+
+        // Password is valid, proceed
+        onNameSubmit(name.trim(), password);
+      } catch (err) {
+        setError('Failed to validate password. Please try again.');
+        setIsSubmitting(false);
+        return;
+      }
+    } else {
+      setIsSubmitting(true);
+      // Small delay to show loading state
+      await new Promise(resolve => setTimeout(resolve, 500));
+      onNameSubmit(name.trim());
+    }
+    
     setIsSubmitting(false);
   };
 
@@ -52,6 +85,12 @@ export function NameInputPage({ roomLink, accessType, roomName, onNameSubmit }: 
         </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
+          
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-700 mb-2">
               Your Name
@@ -60,7 +99,10 @@ export function NameInputPage({ roomLink, accessType, roomName, onNameSubmit }: 
               type="text"
               id="name"
               value={name}
-              onChange={(e) => setName(e.target.value)}
+              onChange={(e) => {
+                setName(e.target.value);
+                setError(null);
+              }}
               placeholder="Enter your name"
               className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-lg"
               required
@@ -68,6 +110,27 @@ export function NameInputPage({ roomLink, accessType, roomName, onNameSubmit }: 
               disabled={isSubmitting}
             />
           </div>
+
+          {accessType === 'host' && requiresPassword && (
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+                Host Password
+              </label>
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => {
+                  setPassword(e.target.value);
+                  setError(null);
+                }}
+                placeholder="Enter host password"
+                className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all duration-200 text-lg"
+                required
+                disabled={isSubmitting}
+              />
+            </div>
+          )}
 
           <div className="flex space-x-3">
             <button
@@ -80,7 +143,7 @@ export function NameInputPage({ roomLink, accessType, roomName, onNameSubmit }: 
             </button>
             <button
               type="submit"
-              disabled={!name.trim() || isSubmitting}
+              disabled={!name.trim() || (accessType === 'host' && requiresPassword && !password.trim()) || isSubmitting}
               className="flex-1 px-4 py-3 bg-blue-600 hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded-lg font-medium transition-colors duration-200 flex items-center justify-center"
             >
               {isSubmitting ? (

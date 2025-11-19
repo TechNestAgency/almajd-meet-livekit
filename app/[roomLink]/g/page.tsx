@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { PageClientImpl } from '@/app/rooms/[roomName]/PageClientImpl';
 import { NameInputPage } from '@/lib/NameInputPage';
 
@@ -18,6 +18,8 @@ interface RoomValidation {
 
 export default function GuestRoomAccess() {
   const params = useParams();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   
   const roomLink = params.roomLink as string;
   const accessType = 'guest';
@@ -89,6 +91,18 @@ export default function GuestRoomAccess() {
     );
   }
 
+  // Check for approved redirect on mount
+  useEffect(() => {
+    const isApproved = searchParams.get('approved') === 'true';
+    const nameFromUrl = searchParams.get('name');
+    
+    // If approved and has name, join directly (bypass waiting list)
+    if (isApproved && nameFromUrl && roomValidation?.exists) {
+      setUserName(nameFromUrl);
+      setShowNameInput(false);
+    }
+  }, [searchParams, roomValidation]);
+
   // Show name input page
   if (showNameInput && !userName) {
     return (
@@ -96,9 +110,10 @@ export default function GuestRoomAccess() {
         roomLink={roomLink}
         accessType={accessType as 'host' | 'guest'}
         roomName={roomValidation?.room?.name}
-        onNameSubmit={(name) => {
-          setUserName(name);
-          setShowNameInput(false);
+        onNameSubmit={async (name) => {
+          // ALL guests must go through waiting list and get host approval
+          // Redirect to waiting list page
+          router.push(`/waiting/${roomLink}?name=${encodeURIComponent(name)}`);
         }}
       />
     );

@@ -13,7 +13,8 @@ export default function CreateRoomModal({ onClose, onRoomCreated }: CreateRoomMo
   const [formData, setFormData] = useState({
     name: '',
     isActive: true,
-    canRecord: false
+    canRecord: false,
+    hostPassword: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -33,7 +34,8 @@ export default function CreateRoomModal({ onClose, onRoomCreated }: CreateRoomMo
           ...formData,
           description: '',
           hostApproval: false,
-          maxParticipants: 50
+          maxParticipants: 50,
+          hostPassword: formData.hostPassword || undefined
         }),
       });
 
@@ -147,6 +149,24 @@ export default function CreateRoomModal({ onClose, onRoomCreated }: CreateRoomMo
                 )}
               />
             </button>
+          </div>
+
+          {/* Host Password */}
+          <div>
+            <label htmlFor="hostPassword" className="block text-sm font-medium text-gray-700 mb-2 text-right">
+              كلمة مرور المضيف (اختياري)
+            </label>
+            <input
+              id="hostPassword"
+              type="password"
+              value={formData.hostPassword}
+              onChange={(e) => handleInputChange('hostPassword', e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-right"
+              placeholder="أدخل كلمة مرور للمضيف"
+            />
+            <p className="text-xs text-gray-500 mt-1 text-right">
+              سيُطلب من المضيف إدخال كلمة المرور للدخول إلى الغرفة
+            </p>
           </div>
 
           {/* Actions */}

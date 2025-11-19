@@ -9,6 +9,8 @@ import { MoreControls } from '@/lib/MoreControls';
 import { SettingsMenu } from '@/lib/SettingsMenu';
 import { ConnectionDetails } from '@/lib/types';
 import { ChatButton } from '@/lib/ChatButton';
+import { PendingRequestsPanel } from '@/lib/PendingRequestsPanel';
+import { toastWithSound } from '@/lib/toast-with-sound';
 import {
   formatChatMessageLinks,
   LocalUserChoices,
@@ -50,6 +52,9 @@ export function PageClientImpl(props: {
   userName: string;
   participantType?: 'host' | 'guest'; // Add participant type
   canRecord?: boolean; // Add canRecord prop
+  roomLink?: string; // Room link for waiting list
+  hostPassword?: string; // Host password for authentication
+  hostApproval?: boolean; // Whether host approval is enabled
 }) {
   const [preJoinChoices, setPreJoinChoices] = React.useState<LocalUserChoices | undefined>(
     undefined,
@@ -205,6 +210,9 @@ export function PageClientImpl(props: {
           canRecord={props.canRecord}
           meetingEnded={meetingEnded}
           setMeetingEnded={setMeetingEnded}
+          roomLink={props.roomLink}
+          hostPassword={props.hostPassword}
+          hostApproval={props.hostApproval}
         />
       )}
     </main>
@@ -223,7 +231,12 @@ function VideoConferenceComponent(props: {
   canRecord?: boolean; // Add canRecord prop
   meetingEnded: boolean; // Add meetingEnded state
   setMeetingEnded: (ended: boolean) => void; // Add setMeetingEnded function
+  roomLink?: string; // Room link for waiting list
+  hostPassword?: string; // Host password for authentication
+  hostApproval?: boolean; // Whether host approval is enabled
 }) {
+  const [showPendingRequests, setShowPendingRequests] = React.useState(false);
+  const seenRequestIdsRef = React.useRef<Set<string>>(new Set());
   const router = useRouter();
   const keyProvider = new ExternalE2EEKeyProvider();
   const { worker, e2eePassphrase } = useSetupE2EE();
@@ -346,10 +359,8 @@ function VideoConferenceComponent(props: {
         await new Promise(resolve => setTimeout(resolve, 500));
       }
       
-      // Set up event listeners
-      room.on(RoomEvent.Disconnected, handleOnLeave);
-      room.on(RoomEvent.EncryptionError, handleEncryptionError);
-      room.on(RoomEvent.MediaDevicesError, handleError);
+      // Set up event listeners (these will be defined later, but we'll set them up in useEffect)
+      // Note: Event listeners are set up in a separate useEffect to avoid forward reference issues
 
       // Attempt connection
       await room.connect(
@@ -404,16 +415,7 @@ function VideoConferenceComponent(props: {
         setUserInteractionRequired(true);
       }
     }
-  }, [isConnecting, isConnected, room, props.connectionDetails.serverUrl, props.connectionDetails.participantToken, props.userChoices.videoEnabled, props.userChoices.audioEnabled, connectOptions, router, reconnectAttempts]);
-
-  // Cleanup event listeners when component unmounts
-  React.useEffect(() => {
-    return () => {
-      room.off(RoomEvent.Disconnected, handleOnLeave);
-      room.off(RoomEvent.EncryptionError, handleEncryptionError);
-      room.off(RoomEvent.MediaDevicesError, handleError);
-    };
-  }, [room]);
+  }, [isConnecting, isConnected, room, props.connectionDetails?.serverUrl, props.connectionDetails?.participantToken, props.userChoices.videoEnabled, props.userChoices.audioEnabled, connectOptions, router, reconnectAttempts]);
 
   const lowPowerMode = useLowCPUOptimizer(room);
   
@@ -523,6 +525,21 @@ function VideoConferenceComponent(props: {
     }
   }, [router, room, handleEncryptionError, handleError, props.meetingEnded, props.setMeetingEnded]);
 
+  // Set up event listeners after handlers are defined
+  React.useEffect(() => {
+    if (room && handleOnLeave && handleEncryptionError && handleError) {
+      room.on(RoomEvent.Disconnected, handleOnLeave);
+      room.on(RoomEvent.EncryptionError, handleEncryptionError);
+      room.on(RoomEvent.MediaDevicesError, handleError);
+      
+      return () => {
+        room.off(RoomEvent.Disconnected, handleOnLeave);
+        room.off(RoomEvent.EncryptionError, handleEncryptionError);
+        room.off(RoomEvent.MediaDevicesError, handleError);
+      };
+    }
+  }, [room, handleOnLeave, handleEncryptionError, handleError]);
+
   // Check if room is already connected when connection details are available
   React.useEffect(() => {
     if (props.connectionDetails && !isConnected && !isConnecting && e2eeSetupComplete) {
@@ -544,6 +561,67 @@ function VideoConferenceComponent(props: {
       console.warn('Low power mode enabled');
     }
   }, [lowPowerMode]);
+
+  // Background polling for host notifications (even when panel is closed)
+  React.useEffect(() => {
+    // Only poll if user is a host, is connected, and has roomLink
+    if (props.participantType !== 'host' || !isConnected || !props.roomLink) {
+      return;
+    }
+
+    const pollForNewRequests = async () => {
+      try {
+        const url = `/api/room/waiting-list?roomLink=${encodeURIComponent(props.roomLink!)}`;
+        const finalUrl = props.hostPassword ? `${url}&password=${encodeURIComponent(props.hostPassword)}` : url;
+        const response = await fetch(finalUrl);
+
+        if (response.ok) {
+          const data = await response.json();
+          const requests = data.requests || [];
+          
+          // Find new requests that we haven't seen before
+          const newRequests = requests.filter((req: { id: string; name: string; createdAt: string }) => {
+            return !seenRequestIdsRef.current.has(req.id);
+          });
+
+          // Show notification for each new request
+          if (newRequests.length > 0) {
+            newRequests.forEach((req: { id: string; name: string; createdAt: string }) => {
+              // Add to seen requests
+              seenRequestIdsRef.current.add(req.id);
+              
+              // Show toast notification with sound
+              toastWithSound(
+                <div>
+                  <div style={{ fontWeight: '600', marginBottom: '4px' }}>
+                    New Student Request
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6b7280' }}>
+                    {req.name} wants to join the meeting
+                  </div>
+                  <div style={{ fontSize: '12px', color: '#9ca3af', marginTop: '4px' }}>
+                    Click the requests button to approve or reject
+                  </div>
+                </div>,
+                {
+                  duration: 8000,
+                  position: 'top-right',
+                }
+              );
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error polling for new requests:', error);
+      }
+    };
+
+    // Poll immediately, then every 3 seconds
+    pollForNewRequests();
+    const interval = setInterval(pollForNewRequests, 3000);
+
+    return () => clearInterval(interval);
+  }, [props.participantType, isConnected, props.roomLink, props.hostPassword]);
 
   // Handle page visibility changes and cleanup
   React.useEffect(() => {
@@ -708,17 +786,59 @@ function VideoConferenceComponent(props: {
         
         {/* Host-specific controls */}
         {props.participantType === 'host' && (
-          <div style={{
-            position: 'fixed',
-            bottom: '100px',
-            right: '20px',
-            zIndex: 1000
-          }}>
-            <MoreControls
-              isHost={true}
-              canRecord={props.canRecord}
-              roomName={props.roomName}
-              onEndMeeting={async () => {
+          <>
+        {/* Pending Requests Button - Show for all hosts */}
+        {props.roomLink && (
+              <div style={{
+                position: 'fixed',
+                bottom: '240px',
+                right: '20px',
+                zIndex: 1000
+              }}>
+                <button
+                  onClick={() => setShowPendingRequests(true)}
+                  style={{
+                    width: '56px',
+                    height: '56px',
+                    borderRadius: '50%',
+                    backgroundColor: '#3b82f6',
+                    color: 'white',
+                    border: 'none',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+                    transition: 'all 0.2s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#2563eb';
+                    e.currentTarget.style.transform = 'scale(1.1)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#3b82f6';
+                    e.currentTarget.style.transform = 'scale(1)';
+                  }}
+                  title="View Pending Requests"
+                >
+                  <svg width="24" height="24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197M13 7a4 4 0 11-8 0 4 4 0 018 0z" />
+                  </svg>
+                </button>
+              </div>
+            )}
+            
+            <div style={{
+              position: 'fixed',
+              bottom: '100px',
+              right: '20px',
+              zIndex: 1000
+            }}>
+              <MoreControls
+                isHost={true}
+                canRecord={props.canRecord}
+                roomName={props.roomName}
+                onEndMeeting={async () => {
                 if (props.meetingEnded) return; // Prevent multiple end meeting calls
                 
                 console.log('🚪 End Meeting button clicked!');
@@ -799,6 +919,17 @@ The meeting has been terminated for all participants and the room has been delet
               }}
             />
           </div>
+          </>
+        )}
+        
+        {/* Pending Requests Panel - Show for all hosts */}
+        {props.participantType === 'host' && props.roomLink && (
+          <PendingRequestsPanel
+            roomLink={props.roomLink}
+            hostPassword={props.hostPassword}
+            isOpen={showPendingRequests}
+            onClose={() => setShowPendingRequests(false)}
+          />
         )}
       </RoomContext.Provider>
     </div>
