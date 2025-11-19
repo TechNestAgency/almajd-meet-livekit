@@ -15,7 +15,10 @@ import { MicrophoneSettings } from './MicrophoneSettings';
 /**
  * @alpha
  */
-export interface SettingsMenuProps extends React.HTMLAttributes<HTMLDivElement> {}
+export interface SettingsMenuProps extends React.HTMLAttributes<HTMLDivElement> {
+  canRecord?: boolean;
+  onClose?: () => void;
+}
 
 /**
  * @alpha
@@ -34,9 +37,9 @@ export function SettingsMenu(props: SettingsMenuProps) {
   const settings = React.useMemo(() => {
     return {
       media: { camera: true, microphone: true, label: 'Media Devices', speaker: true },
-      recording: recordingEndpoint ? { label: 'Recording' } : undefined,
+      recording: (recordingEndpoint && props.canRecord) ? { label: 'Recording' } : undefined,
     };
-  }, [recordingEndpoint]);
+  }, [recordingEndpoint, props.canRecord]);
 
   const tabs = React.useMemo(
     () => Object.keys(settings).filter((t) => t !== undefined) as Array<keyof typeof settings>,
@@ -83,7 +86,9 @@ export function SettingsMenu(props: SettingsMenuProps) {
 
   const handleClose = () => {
     console.log('Closing settings menu');
-    if (layoutContext?.widget.dispatch) {
+    if (props.onClose) {
+      props.onClose();
+    } else if (layoutContext?.widget.dispatch) {
       layoutContext.widget.dispatch({ msg: 'toggle_settings' });
     } else {
       // Fallback: dispatch custom event

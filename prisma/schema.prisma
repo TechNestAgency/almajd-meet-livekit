@@ -22,17 +22,20 @@ model User {
 }
 
 model Room {
-  id                String           @id @default(cuid())
+  id                String              @id @default(cuid())
   name              String
   description       String?
-  hostApproval      Boolean          @default(false)
-  maxParticipants   Int              @default(50)
-  isActive          Boolean          @default(true)
-  createdAt         DateTime         @default(now())
-  updatedAt         DateTime         @updatedAt
+  hostApproval      Boolean             @default(false)
+  maxParticipants   Int                 @default(50)
+  isActive          Boolean             @default(true)
+  canRecord         Boolean             @default(false)
+  hostPassword      String?             // Hashed password for host access
+  createdAt         DateTime            @default(now())
+  updatedAt         DateTime            @updatedAt
   participants      Participant[]
-  hostLink          String           @unique
-  guestLink         String           @unique
+  pendingParticipants PendingParticipant[]
+  hostLink          String              @unique
+  guestLink         String              @unique
 
   @@map("rooms")
 }
@@ -48,6 +51,17 @@ model Participant {
   updatedAt DateTime       @updatedAt
   @@unique([roomId, name])
   @@map("participants")
+}
+
+model PendingParticipant {
+  id        String   @id @default(cuid())
+  name      String
+  roomId    String
+  status    String   @default("PENDING") // PENDING, APPROVED, REJECTED
+  room      Room     @relation(fields: [roomId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  @@map("pending_participants")
 }
 
 

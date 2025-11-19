@@ -11,6 +11,7 @@ interface Room {
   hostApproval: boolean;
   maxParticipants: number;
   isActive: boolean;
+  canRecord: boolean;
   createdAt: string;
   hostLink: string;
   guestLink: string;
@@ -30,14 +31,18 @@ interface EditRoomModalProps {
 export default function EditRoomModal({ room, onClose, onRoomUpdated }: EditRoomModalProps) {
   const [formData, setFormData] = useState({
     name: '',
-    isActive: true
+    isActive: true,
+    canRecord: false,
+    hostPassword: ''
   });
   const [isLoading, setIsLoading] = useState(false);
 
   useEffect(() => {
     setFormData({
       name: room.name,
-      isActive: room.isActive
+      isActive: room.isActive,
+      canRecord: room.canRecord,
+      hostPassword: '' // Don't show existing password for security
     });
   }, [room]);
 
@@ -57,7 +62,9 @@ export default function EditRoomModal({ room, onClose, onRoomUpdated }: EditRoom
           ...formData,
           description: room.description || '',
           hostApproval: room.hostApproval,
-          maxParticipants: room.maxParticipants
+          maxParticipants: room.maxParticipants,
+          canRecord: formData.canRecord,
+          hostPassword: formData.hostPassword || undefined
         }),
       });
 
@@ -146,6 +153,49 @@ export default function EditRoomModal({ room, onClose, onRoomUpdated }: EditRoom
                 )}
               />
             </button>
+          </div>
+
+          {/* Recording Status */}
+          <div className="flex items-center justify-between">
+            <div className="text-right">
+              <label htmlFor="canRecord" className="text-sm font-medium text-gray-700">
+                تسجيل الاجتماعات
+              </label>
+              <p className="text-xs text-gray-500">السماح بتسجيل الاجتماعات في هذه الغرفة</p>
+            </div>
+            <button
+              type="button"
+              onClick={() => handleInputChange('canRecord', !formData.canRecord)}
+              className={cn(
+                'relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary-500 focus:ring-offset-2',
+                formData.canRecord ? 'bg-blue-600' : 'bg-gray-200'
+              )}
+            >
+              <span
+                className={cn(
+                  'inline-block h-4 w-4 transform rounded-full bg-white transition-transform',
+                  formData.canRecord ? 'translate-x-6' : 'translate-x-1'
+                )}
+              />
+            </button>
+          </div>
+
+          {/* Host Password */}
+          <div>
+            <label htmlFor="hostPassword" className="block text-sm font-medium text-gray-700 mb-2 text-right">
+              كلمة مرور المضيف (اختياري)
+            </label>
+            <input
+              id="hostPassword"
+              type="password"
+              value={formData.hostPassword}
+              onChange={(e) => handleInputChange('hostPassword', e.target.value)}
+              className="block w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 transition-colors text-right"
+              placeholder="اتركه فارغاً للاحتفاظ بالكلمة الحالية أو أدخل كلمة جديدة"
+            />
+            <p className="text-xs text-gray-500 mt-1 text-right">
+              اتركه فارغاً للاحتفاظ بالكلمة الحالية، أو أدخل كلمة جديدة لتغييرها
+            </p>
           </div>
 
           {/* Room Info - Simplified */}

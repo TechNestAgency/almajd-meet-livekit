@@ -32,6 +32,11 @@ yarn-error.log*
 .env.production.local
 .env.production
 
+# Local development files
+env.local
+docker-compose.local.yml
+livekit.local.yaml
+
 # vercel
 .vercel
 
@@ -41,6 +46,8 @@ yarn-error.log*
 # Database files
 prisma/dev.db
 prisma/dev.db-journal
+dev-local.db
+dev-local.db-journal
 data/
 uploads/
 
@@ -54,3 +61,31 @@ newmeet_mobile/.packages
 newmeet_mobile/.pub-cache/
 newmeet_mobile/.pub/
 newmeet_mobile/pubspec.lock
+
+# Database files
+prisma/dev.db
+prisma/dev-local.db
+
+# Environment files
+.env
+
+# Electron distributions
+electron-app/dist/
+
+# Prisma migrations (if not needed in production)
+prisma/migrations/
+
+# Flutter/iOS dependencies
+newmeet_mobile/ios/Pods/
+newmeet_mobile/macos/Pods/
+newmeet_mobile/android/.gradle/
+newmeet_mobile/build/
+
+# Flutter generated files
+newmeet_mobile/.dart_tool/
+newmeet_mobile/.packages
+newmeet_mobile/pubspec.lock
+
+# Node modules
+electron-app/node_modules/
+node_modules/
